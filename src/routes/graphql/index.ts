@@ -66,10 +66,56 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
       id: { type: UUIDType },
       name: { type: GraphQLString },
       balance: { type: GraphQLString },
-      profile: { type: ProfileType },
-      posts: { type: new GraphQLList(PostType) },
-      userSubscribedTo: { type: new GraphQLList(UserType) },
-      subscribedToUser: { type: new GraphQLList(UserType) },
+      profile: {
+        type: ProfileType,
+        resolve: async (user) => {
+          return await prisma.profile.findUnique({
+            where: { userId: user.id },
+          });
+        },
+      },
+      posts: {
+        type: new GraphQLList(PostType),
+        resolve: async (user) => {
+          return await prisma.post.findMany({
+            where: { authorId: user.id },
+          });
+        },
+      },
+      userSubscribedTo: {
+        type: new GraphQLList(UserType),
+        resolve: async (user) => {
+          return await prisma.user.findMany({
+            where: {
+              id: {
+                in: await prisma.subscribersOnAuthors
+                  .findMany({
+                    where: { subscriberId: user.id },
+                    select: { authorId: true },
+                  })
+                  .then((subscriptions) => subscriptions.map((sub) => sub.authorId)),
+              },
+            },
+          });
+        },
+      },
+      subscribedToUser: {
+        type: new GraphQLList(UserType),
+        resolve: async (user) => {
+          return await prisma.user.findMany({
+            where: {
+              id: {
+                in: await prisma.subscribersOnAuthors
+                  .findMany({
+                    where: { authorId: user.id },
+                    select: { subscriberId: true },
+                  })
+                  .then((subscriptions) => subscriptions.map((sub) => sub.subscriberId)),
+              },
+            },
+          });
+        },
+      },
     }),
   });
 
