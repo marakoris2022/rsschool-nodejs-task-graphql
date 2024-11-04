@@ -3,8 +3,10 @@ import { createGqlResponseSchema, gqlResponseSchema } from './schemas.js';
 import {
   graphql,
   GraphQLEnumType,
+  GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
+  GraphQLSchema,
   GraphQLString,
 } from 'graphql';
 import { UUIDType } from './types/uuid.js';
@@ -35,7 +37,7 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
       id: { type: UUIDType },
       title: { type: GraphQLString },
       content: { type: GraphQLString },
-      authorId: { type: new GraphQLNonNull(UUIDType) }, // Добавлено поле authorId
+      authorId: { type: new GraphQLNonNull(UUIDType) },
     }),
   });
 
@@ -43,9 +45,9 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
     name: 'Profile',
     fields: () => ({
       id: { type: UUIDType },
-      isMale: { type: new GraphQLNonNull(GraphQLString) }, // Boolean
+      isMale: { type: new GraphQLNonNull(GraphQLString) },
       yearOfBirth: { type: GraphQLString },
-      userId: { type: new GraphQLNonNull(UUIDType) }, // Добавлено поле userId
+      userId: { type: new GraphQLNonNull(UUIDType) },
       memberType: {
         type: MemberTypeType,
         resolve: async (profile) => {
@@ -70,6 +72,70 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
     }),
   });
 
+  const RootQueryType = new GraphQLObjectType({
+    name: 'RootQueryType',
+    fields: () => ({
+      memberTypes: {
+        type: new GraphQLList(MemberTypeType),
+        resolve: async () => {
+          return await prisma.memberType.findMany();
+        },
+      },
+      users: {
+        type: new GraphQLList(UserType),
+        resolve: async () => {
+          return await prisma.user.findMany();
+        },
+      },
+      posts: {
+        type: new GraphQLList(PostType),
+        resolve: async () => {
+          return await prisma.post.findMany();
+        },
+      },
+      profiles: {
+        type: new GraphQLList(ProfileType),
+        resolve: async () => {
+          return await prisma.profile.findMany();
+        },
+      },
+      memberType: {
+        type: MemberTypeType,
+        args: { id: { type: new GraphQLNonNull(MemberTypeId) } },
+        resolve: async (_, { id }: { id: string }) => {
+          // Fetch the member type by its ID
+          return await prisma.memberType.findUnique({ where: { id } });
+        },
+      },
+      user: {
+        type: UserType,
+        args: { id: { type: new GraphQLNonNull(UUIDType) } },
+        resolve: async (_, { id }: { id: string }) => {
+          return await prisma.user.findUnique({ where: { id } });
+        },
+      },
+      post: {
+        type: PostType,
+        args: { id: { type: new GraphQLNonNull(UUIDType) } },
+        resolve: async (_, { id }: { id: string }) => {
+          return await prisma.post.findUnique({ where: { id } });
+        },
+      },
+      profile: {
+        type: ProfileType,
+        args: { id: { type: new GraphQLNonNull(UUIDType) } },
+        resolve: async (_, { id }: { id: string }) => {
+          return await prisma.profile.findUnique({ where: { id } });
+        },
+      },
+    }),
+  });
+
+  const schema = new GraphQLSchema({
+    query: RootQueryType,
+    // mutation: Mutations,
+  });
+
   fastify.route({
     url: '/',
     method: 'POST',
@@ -80,7 +146,10 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
       },
     },
     async handler(req) {
-      // return graphql();
+      return graphql({
+        schema,
+        source: req.body.query,
+      });
     },
   });
 };
