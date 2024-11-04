@@ -3,6 +3,7 @@ import { createGqlResponseSchema, gqlResponseSchema } from './schemas.js';
 import {
   graphql,
   GraphQLEnumType,
+  GraphQLInputObjectType,
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
@@ -131,9 +132,80 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
     }),
   });
 
+  const CreateUserInput = new GraphQLInputObjectType({
+    name: 'CreateUserInput',
+    fields: {
+      name: { type: new GraphQLNonNull(GraphQLString) },
+      balance: { type: new GraphQLNonNull(GraphQLString) },
+    },
+  });
+
+  const CreateProfileInput = new GraphQLInputObjectType({
+    name: 'CreateProfileInput',
+    fields: {
+      isMale: { type: new GraphQLNonNull(GraphQLString) },
+      yearOfBirth: { type: GraphQLString },
+      userId: { type: new GraphQLNonNull(UUIDType) },
+      memberTypeId: { type: new GraphQLNonNull(MemberTypeId) },
+    },
+  });
+
+  const Mutations = new GraphQLObjectType({
+    name: 'Mutations',
+    fields: {
+      createUser: {
+        type: UserType,
+        args: { dto: { type: new GraphQLNonNull(CreateUserInput) } },
+        resolve: async (_, { dto }) => {
+          const user = await prisma.user.create({ data: dto });
+          return user;
+        },
+      },
+      deleteUser: {
+        type: GraphQLString,
+        args: { id: { type: new GraphQLNonNull(UUIDType) } },
+        resolve: async (_, { id }: { id: string }) => {
+          await prisma.user.delete({ where: { id } });
+          return `User with id ${id} deleted successfully.`;
+        },
+      },
+      createProfile: {
+        type: ProfileType,
+        args: { dto: { type: new GraphQLNonNull(CreateProfileInput) } },
+        resolve: async (_, { dto }) => {
+          const profile = await prisma.profile.create({ data: dto });
+          return profile;
+        },
+      },
+
+      subscribeTo: {
+        type: GraphQLString,
+        args: {
+          userId: { type: new GraphQLNonNull(UUIDType) },
+          authorId: { type: new GraphQLNonNull(UUIDType) },
+        },
+        resolve: async (_, { userId, authorId }) => {
+          // Logic to handle subscription
+          return `Subscribed to user ${authorId}`;
+        },
+      },
+      unsubscribeFrom: {
+        type: GraphQLString,
+        args: {
+          userId: { type: new GraphQLNonNull(UUIDType) },
+          authorId: { type: new GraphQLNonNull(UUIDType) },
+        },
+        resolve: async (_, { userId, authorId }) => {
+          // Logic to handle unsubscription
+          return `Unsubscribed from user ${authorId}`;
+        },
+      },
+    },
+  });
+
   const schema = new GraphQLSchema({
     query: RootQueryType,
-    // mutation: Mutations,
+    mutation: Mutations,
   });
 
   fastify.route({
